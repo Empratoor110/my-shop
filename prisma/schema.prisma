@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+model Admin {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  failedAttempts Int      @default(0)
+  lockedUntil   DateTime?
+  createdAt     DateTime  @default(now())
+}
+model User {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  nationalId   String?
+  firstName    String?
+  lastName     String?
+  fatherName   String?
+  address      String?
+  seedAmount   String?
+  farmLocation String?
+  contactPhone String?
+  sheba        String?
+  referralCode String?
+  createdAt    DateTime @default(now())
+  orders       Order[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  price       Int
+  category    String
+  description String?
+  stock       Int      @default(0)
+  createdAt   DateTime @default(now())
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  agentId   String?     
+  status    String      @default("pending")
+  total     Int
+  createdAt DateTime    @default(now())
+  items     OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Int
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+model OrderStatusHistory {
+  id        String   @id @default(cuid())
+  orderId   String
+  status    String
+  changedAt DateTime @default(now())
+}
+// این مدل رو داخل schema.prisma اضافه کنید (کاملاً مجزا از مدل Admin موجود)
+// بعدش:
+//   npx prisma migrate dev --name add_content_admin
+//   npx prisma generate
+
+model ContentAdmin {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  password       String    // هش‌شده با bcrypt، دقیقاً مثل مدل Admin
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+// -----------------------------------------------------------------------
+// برای ساخت اولین حساب مدیر محتوا (چون فرمی برای ثبت‌نام نداریم)،
+// یه اسکریپت موقت بسازید و یک‌بار اجرا کنید، مثلاً در فایل create-content-admin.js:
+//
+// const bcrypt = require("bcryptjs");
+// const { PrismaClient } = require("@prisma/client");
+// const prisma = new PrismaClient();
+//
+// async function main() {
+//   const hashed = await bcrypt.hash("رمز-دلخواه-شما", 10);
+//   await prisma.contentAdmin.create({
+//     data: { email: "content@example.com", password: hashed },
+//   });
+//   console.log("ساخته شد");
+// }
+// main();
+//
+// اجرا با: node create-content-admin.js
+// -----------------------------------------------------------------------
+
+// این مدل رو داخل فایل schema.prisma خودتون اضافه کنید (کنار مدل‌های موجود مثل User و Product)
+// بعد از اضافه کردن، این دستورات رو در ترمینال اجرا کنید:
+//   npx prisma migrate dev --name add_variety_item
+//   npx prisma generate
+
+model VarietyItem {
+  id         String   @id @default(cuid())
+  category   String   // یکی از مقادیر: "specs" | "weeds" | "diseases" | "pests"
+  name       String   // نام رقم / علف هرز / بیماری / آفت
+  detail     String   // توضیحات
+
+  // تا ۴ تصویر، هرکدوم با عنوان مجزا (برای نمایش به‌صورت آلبوم/گالری)
+  image1     String?  @db.Text
+  image1Title String?
+  image2     String?  @db.Text
+  image2Title String?
+  image3     String?  @db.Text
+  image3Title String?
+  image4     String?  @db.Text
+  image4Title String?
+
+  yieldInfo  String?  // فقط برای category="specs" — عملکرد دانه (کیلوگرم در هکتار)
+  region     String?  // فقط برای category="specs" — منطقه‌ی مناسب
+  resistance String?  // فقط برای category="specs" — مقاومت (توضیح کلی/اختیاری)
+
+  // مشخصات تفصیلی زراعی — فقط برای category="specs"
+  growthType          String? // تیپ رشد
+  daysToSpike         String? // روز تا ظهور سنبله
+  daysToMaturity      String? // روز تا رسیدگی فیزیولوژیک
+  plantHeight         String? // ارتفاع بوته (سانتی‌متر)
+  grainColor          String? // رنگ دانه
+  thousandGrainWeight String? // وزن هزار دانه (گرم)
+  lodging             String? // خوابیدگی
+  grainShattering     String? // ریزش دانه
+  grainProtein        String? // پروتئین دانه (%)
+  grainHardness       String? // سختی دانه
+  yellowRust          String? // زنگ زرد
+
+  order      Int      @default(0) // ترتیب نمایش
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([category])
+}
+
+
+model Agent {
+  id               String   @id @default(cuid())
+  phone            String   @unique
+  agentCode        String   @unique // کدی که به مشتری‌ها می‌دن؛ در فیلد "کد معرف" مشتری وارد می‌شه
+  commissionRate   Float    @default(5) // درصد کمیسیون — هر عامل جداگانه، توسط ادمین تنظیم می‌شه
+
+  entityType String? // "individual" | "legal"
+
+  // فیلدهای شخص حقیقی
+  firstName        String?
+  lastName         String?
+  nationalId       String? // کد ملی شخص حقیقی
+  warehouseAddress String? // آدرس محل انبار
+
+  // فیلدهای شخصیت حقوقی
+  companyName        String? // نام شرکت
+  companyNationalId  String? // شناسه ملی شرکت
+  companyAddress     String? // آدرس شرکت
+  ceoName            String? // نام مدیرعامل
+  ceoNationalId      String? // کد ملی مدیرعامل
+  ceoPhone           String? // شماره تماس مدیرعامل
+
+  sheba            String? // شماره شبا برای واریز کمیسیون
+
+  profileCompleted Boolean  @default(false) // فرم اطلاعات پر شده یا نه
+  approvalStatus   String   @default("pending") // pending | approved | rejected
+  adminNote        String? // توضیح ادمین در صورت رد درخواست
+
+  createdAt DateTime @default(now())
+
+  requests    AgentRequest[]
+  settlements SettlementRequest[]
+}
+
+// درخواست‌های عمومی عامل فروش (غیر از تسویه) — مثل درخواست پشتیبانی، مرخصی، و غیره
+model AgentRequest {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  subject   String
+  message   String
+  status    String   @default("pending") // pending | approved | rejected
+  adminNote String?
+  createdAt DateTime @default(now())
+}
+
+// درخواست تسویه‌حساب کمیسیون
+model SettlementRequest {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  amount    Int // مبلغ درخواستی به تومان
+  status    String   @default("pending") // pending | approved | rejected
+  adminNote String?
+  createdAt DateTime @default(now())
+}
+
+
