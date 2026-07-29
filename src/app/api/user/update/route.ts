@@ -1,18 +1,32 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import { getUserFromRequest } from "../../../lib/auth";
 
 export async function POST(req: Request) {
   try {
+    const authUser = await getUserFromRequest(req);
+    if (!authUser) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
     const { firstName, lastName, address } = body;
 
-    // ساد‌ه: کاربر را از کوکی token شناسایی نمی‌کنیم (نیاز به middleware یا verify JWT)
-    // در نسخه بعدی: تایید JWT و استفاده از userId واقعی
+    // Simple validation
+    if (!firstName && !lastName && !address) {
+      return NextResponse.json({ ok: false, error: "nothing to update" }, { status: 400 });
+    }
 
-    // فعلاً فقط پاسخ موفق به فرانت می‌دهیم و در سمت سرور ذخیره‌سازی را انجام نمی‌دهیم
-    // TODO: verify JWT from cookie and update user by id
+    const updated = await prisma.user.update({
+      where: { id: authUser.id },
+      data: {
+        firstName: firstName ?? undefined,
+        lastName: lastName ?? undefined,
+        address: address ?? undefined,
+      },
+    });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, user: updated });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
