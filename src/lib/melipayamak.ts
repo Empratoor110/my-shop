@@ -1,25 +1,24 @@
 // src/lib/melipayamak.ts
-// ارسال کد OTP با استفاده از سرویس پترن (الگو) ملی‌پیامک
-// خودمون کد رو می‌سازیم، از طریق args داخل الگوی پیامکی جایگزین {0} می‌کنیم،
-// و همون کد رو برمی‌گردونیم تا توی دیتابیس ذخیره بشه و بعداً verify بشه.
+// ارسال کد OTP با استفاده از سرویس ملی‌پیامک
+// این ماژول دیگر خودش کد نمی‌سازد؛ کد را به عنوان آرگومان می‌گیرد و ارسال می‌کند.
 
-const MELIPAYAMAK_API_KEY = "7cf625a496c947f8bccea0943685d75f";
-const MELIPAYAMAK_BODY_ID = 486756;
+const MELIPAYAMAK_API_KEY = process.env.MELIPAYAMAK_API_KEY || "";
+const MELIPAYAMAK_BODY_ID = Number(process.env.MELIPAYAMAK_BODY_ID || 0);
 
 interface MelipayamakResponse {
-  recId?: number | string; // شناسه‌ی پیگیری پیامک در صورت ارسال موفق
-  status: string;          // توضیح وضعیت (مثلاً 'عملیات موفق')
+  recId?: number | string;
+  status: string;
 }
 
 interface SendOtpResult {
   success: boolean;
-  code?: string; // کد OTP که ما ساختیم و پیامک شده (برای ذخیره در دیتابیس)
   error?: string;
 }
 
-export async function sendOtpSms(phone: string): Promise<SendOtpResult> {
-  // ساخت یک کد ۵ رقمی تصادفی برای OTP
-  const otpCode = Math.floor(10000 + Math.random() * 90000).toString();
+export async function sendOtpSms(phone: string, code: string): Promise<SendOtpResult> {
+  if (!MELIPAYAMAK_API_KEY || !MELIPAYAMAK_BODY_ID) {
+    return { success: false, error: "Melipayamak config not set" };
+  }
 
   try {
     const url = `https://console.melipayamak.com/api/send/shared/${MELIPAYAMAK_API_KEY}`;
@@ -32,17 +31,17 @@ export async function sendOtpSms(phone: string): Promise<SendOtpResult> {
       body: JSON.stringify({
         bodyId: MELIPAYAMAK_BODY_ID,
         to: phone,
-        args: [otpCode], // این مقدار جای {0} توی متن الگو می‌شینه
+        args: [code],
       }),
     });
 
     const data: MelipayamakResponse = await res.json();
     console.log("Melipayamak response:", data);
 
-    const isSuccess = res.ok && !!data.recId && data.status === "عملیات موفق";
+    const isSuccess = res.ok && !!data.recId && (data.status === "عملیات موفق" || data.status === "موفق");
 
     if (isSuccess) {
-      return { success: true, code: otpCode };
+      return { success: true };
     } else {
       console.error("Melipayamak error:", data);
       return { success: false, error: data.status || JSON.stringify(data) };
