@@ -35,6 +35,13 @@ export async function POST(req: Request) {
       },
     });
 
+    // If TEST_MODE=true, don't call SMS provider and return the code in response for local testing only
+    const isTest = process.env.TEST_MODE === "true";
+    if (isTest) {
+      console.log("TEST_MODE active - returning OTP in response");
+      return NextResponse.json({ ok: true, testCode: otpPlain });
+    }
+
     // ارسال پیامک
     const sendResult = await sendOtpSms(phone, otpPlain);
 
